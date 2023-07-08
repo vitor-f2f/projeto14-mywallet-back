@@ -59,7 +59,7 @@ app.post("/signup", async (req, res) => {
     try {
         const nameExists = await db
             .collection("userlist")
-            .findOne({ name: userlist.name });
+            .findOne({ name: signupInfo.name });
 
         if (nameExists) {
             return res.status(409).send("Usuario ja existe");
@@ -67,7 +67,7 @@ app.post("/signup", async (req, res) => {
 
         const emailUsed = await db
             .collection("userlist")
-            .findOne({ name: userlist.email });
+            .findOne({ email: signupInfo.email });
 
         if (emailUsed) {
             return res.status(409).send("Email está em uso");
@@ -175,7 +175,7 @@ app.post("/transaction/:type", async (req, res) => {
 
 /* ------ port setup ------ */
 
-const PORT = 5000;
-app.listen(PORT, () => {
-    console.log(`Usando porta ${PORT}`);
+const port = process.env.PORT || 5000;
+app.listen(port, () => {
+    console.log(`Servidor rodando na porta ${port}`);
 });
