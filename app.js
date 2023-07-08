@@ -40,6 +40,12 @@ const signinSchema = joi.object({
     password: joi.string().min(1).required(),
 });
 
+const transactionSchema = joi.object({
+    type: joi.string().min(1).valid("entrada", "saida").required(),
+    value: joi.number().positive().required(),
+    description: joi.string().min(1).required(),
+});
+
 /* ------ requests ------ */
 
 app.post("/signup", async (req, res) => {
@@ -73,6 +79,7 @@ app.post("/signup", async (req, res) => {
             name: signupInfo.name,
             email: signupInfo.email,
             password: password,
+            balance: 0,
         };
 
         await db.collection("userlist").insertOne(signupObj);
@@ -114,6 +121,55 @@ app.post("/signin", async (req, res) => {
         }
     } catch (error) {
         return res.status(500).send("Erro na tentativa de login");
+    }
+});
+
+app.post("/transaction/:type", async (req, res) => {
+    const { type } = req.params;
+    const transactionInfo = req.body;
+
+    const { error } = transactionSchema.validate(transactionInfo, {
+        abortEarly: false,
+    });
+    if (error) {
+        return res.status(422).send("Erro de validação da transação");
+    }
+
+    const authToken = req.headers.authorization;
+    if (!authToken) {
+        return res.status(401).send("Não foi enviado token de autorização");
+    }
+
+    try {
+        const session = await db
+            .collection("sessions")
+            .findOne({ token: authToken });
+        if (!session) {
+            return res.status(401).send("Token de autorização inválido");
+        }
+
+        const userId = session.userId;
+        const user = await db
+            .collection("userlist")
+            .findOne({ _id: new ObjectId(id) });
+        if (!user) {
+            return res.status(404).send("Usuario não foi encontrado");
+        }
+
+        let balance = user.balance;
+        if (type === "entrada") {
+            balance += transactionInfo.value;
+        } else if (type === "saida") {
+            balance -= transactionInfo.value;
+        }
+
+        await db
+            .collection("userlist")
+            .updateOne({ _id: userId }, { $set: { balance } });
+
+        return res.sendStatus(200);
+    } catch (error) {
+        return res.status(500).send("Erro na tentativa de transação");
     }
 });
 
