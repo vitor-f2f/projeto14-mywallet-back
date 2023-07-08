@@ -41,7 +41,6 @@ const signinSchema = joi.object({
 });
 
 const transactionSchema = joi.object({
-    type: joi.string().min(1).valid("entrada", "saida").required(),
     value: joi.number().positive().required(),
     description: joi.string().min(1).required(),
 });
@@ -135,6 +134,10 @@ app.post("/transaction/:type", async (req, res) => {
         return res.status(422).send("Erro de validação da transação");
     }
 
+    if (type !== "entrada" && type !== "saida") {
+        return res.status(400).send("Tipo de transação inválido");
+    }
+
     const authToken = req.headers.authorization;
     if (!authToken) {
         return res.status(401).send("Não foi enviado token de autorização");
@@ -151,7 +154,7 @@ app.post("/transaction/:type", async (req, res) => {
         const userId = session.userId;
         const user = await db
             .collection("userlist")
-            .findOne({ _id: new ObjectId(id) });
+            .findOne({ _id: new ObjectId(userId) });
         if (!user) {
             return res.status(404).send("Usuario não foi encontrado");
         }
@@ -163,6 +166,15 @@ app.post("/transaction/:type", async (req, res) => {
             balance -= transactionInfo.value;
         }
 
+        const transactionObj = {
+            userId: userId,
+            type: type,
+            value: transactionInfo.value,
+            description: transactionInfo.description,
+        };
+
+        await db.collection("transactions").insertOne(transactionObj);
+
         await db
             .collection("userlist")
             .updateOne({ _id: userId }, { $set: { balance } });
@@ -170,6 +182,44 @@ app.post("/transaction/:type", async (req, res) => {
         return res.sendStatus(200);
     } catch (error) {
         return res.status(500).send("Erro na tentativa de transação");
+    }
+});
+
+app.get("/account", async (req, res) => {
+    const authToken = req.headers.authorization;
+    if (!authToken) {
+        return res.status(401).send("Não foi enviado token de autorização");
+    }
+
+    try {
+        const session = await db
+            .collection("sessions")
+            .findOne({ token: authToken });
+        if (!session) {
+            return res.status(401).send("Token de autorização inválido");
+        }
+
+        const userId = session.userId;
+        const user = await db
+            .collection("userlist")
+            .findOne({ _id: new ObjectId(userId) });
+        if (!user) {
+            return res.status(404).send("Usuário não foi encontrado");
+        }
+
+        const transactionsList = await db
+            .collection("transactions")
+            .find({ userId: userId })
+            .toArray();
+
+        const response = {
+            balance: user.balance,
+            transactions: transactionsList,
+        };
+
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).send("Erro ao buscar transações");
     }
 });
 
