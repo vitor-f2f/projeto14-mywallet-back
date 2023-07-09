@@ -210,6 +210,7 @@ app.get("/account", async (req, res) => {
         const transactionsList = await db
             .collection("transactions")
             .find({ userId: userId })
+            .project({ type: 1, value: 1, description: 1, _id: 0 })
             .toArray();
 
         const response = {
