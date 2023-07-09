@@ -114,7 +114,11 @@ app.post("/signin", async (req, res) => {
             await db
                 .collection("sessions")
                 .insertOne({ userId: user._id, token });
-            res.status(200).send(token);
+            const response = {
+                name: user.name,
+                token: token,
+            };
+            res.status(200).send(response);
         } else {
             return res.status(401).send("Senha incorreta");
         }
