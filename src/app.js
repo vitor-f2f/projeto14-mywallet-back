@@ -4,7 +4,7 @@ import { MongoClient, ObjectId } from "mongodb";
 import bcrypt from "bcrypt";
 import joi from "joi";
 import dotenv from "dotenv";
-import { stripHtml } from "string-strip-html";
+import dayjs from "dayjs";
 import { v4 as uuid } from "uuid";
 
 dotenv.config();
@@ -113,7 +113,7 @@ app.post("/signin", async (req, res) => {
             const token = uuid();
             await db
                 .collection("sessions")
-                .insertOne({ userId: user._id, token });
+                .insertOne({ userId: user._id, created: Date.now(), token });
             const response = {
                 name: user.name,
                 token: token,
@@ -165,9 +165,9 @@ app.post("/transaction/:type", async (req, res) => {
 
         let balance = user.balance;
         if (type === "entrada") {
-            balance += transactionInfo.value;
+            balance += Number(transactionInfo.value);
         } else if (type === "saida") {
-            balance -= transactionInfo.value;
+            balance -= Number(transactionInfo.value);
         }
 
         const transactionObj = {
@@ -175,6 +175,7 @@ app.post("/transaction/:type", async (req, res) => {
             type: type,
             value: transactionInfo.value,
             description: transactionInfo.description,
+            date: dayjs().format("DD/MM"),
         };
 
         await db.collection("transactions").insertOne(transactionObj);
@@ -214,7 +215,7 @@ app.get("/account", async (req, res) => {
         const transactionsList = await db
             .collection("transactions")
             .find({ userId: userId })
-            .project({ type: 1, value: 1, description: 1, _id: 0 })
+            .project({ date: 1, type: 1, value: 1, description: 1, _id: 0 })
             .toArray();
 
         const response = {
@@ -227,6 +228,26 @@ app.get("/account", async (req, res) => {
         return res.status(500).send("Erro ao buscar transações");
     }
 });
+
+const checkTokens = async () => {
+    try {
+        const oldTokens = await db
+            .collection("sessions")
+            .find({ created: { $lt: Date.now() - 24 * 60 * 60 * 1000 } })
+            .toArray();
+        if (oldTokens.length === 0) {
+            return;
+        }
+
+        await db.collection("sessions").deleteMany({
+            _id: { $in: oldTokens.map((t) => t._id) },
+        });
+    } catch {
+        return console.log("Erro ao checar tokens inativos");
+    }
+};
+
+setInterval(checkTokens, 60 * 60 * 1000);
 
 /* ------ port setup ------ */
 
