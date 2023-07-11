@@ -218,9 +218,11 @@ app.get("/account", async (req, res) => {
             .project({ date: 1, type: 1, value: 1, description: 1, _id: 0 })
             .toArray();
 
+        const revList = transactionsList.reverse();
+
         const response = {
             balance: user.balance,
-            transactions: transactionsList,
+            transactions: revList,
         };
 
         return res.status(200).json(response);
